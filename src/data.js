@@ -8,6 +8,7 @@ async function fetchJson(path) {
 
 async function listDirectory(path) {
     const response = await fetch(`${DATA_ROOT}${path}`);
+    if (response.status === 404) return listGithubDirectory(path);
     if (!response.ok) throw new Error(`Could not discover ${path} (${response.status})`);
     const html = await response.text();
     const directoryUrl = new URL(response.url);
@@ -20,6 +21,22 @@ async function listDirectory(path) {
         const relativePath = target.pathname.slice(directoryPath.length).replace(/\/$/, "");
         return relativePath && !relativePath.includes("/") ? decodeURIComponent(relativePath) : "";
     }).filter(Boolean);
+}
+
+async function listGithubDirectory(path) {
+    const repository = githubRepository();
+    if (!repository) throw new Error(`Could not discover ${path} (404)`);
+    const response = await fetch(`https://api.github.com/repos/${repository}/contents/data/${path.replace(/^\/|\/$/g, "")}`);
+    if (!response.ok) throw new Error(`Could not discover ${path} (${response.status})`);
+    const entries = await response.json();
+    return entries.map((entry) => entry.name);
+}
+
+function githubRepository() {
+    if (!window.location.hostname.endsWith(".github.io")) return "";
+    const owner = window.location.hostname.slice(0, -".github.io".length);
+    const pathParts = window.location.pathname.split("/").filter(Boolean);
+    return `${owner}/${pathParts[0] || "library-of-pergamon"}`;
 }
 
 async function exists(path) {
@@ -47,8 +64,6 @@ function sortVolumes(volumes, direction) {
 }
 
 async function discoverMetadata() {
-    const generated = await loadGeneratedCatalog();
-    if (generated) return generated;
     const [seriesNames, novelNames, volumeFolders] = await Promise.all([
         listDirectory("series/"),
         listDirectory("novels/"),
@@ -63,18 +78,6 @@ async function discoverMetadata() {
             .forEach((name) => volumePaths.push(`volume/${folder}/${name}`));
     }
     return { seriesPaths, novelPaths, volumePaths };
-}
-
-async function loadGeneratedCatalog() {
-    const response = await fetch(`${DATA_ROOT}catalog.json`);
-    if (response.status === 404) return null;
-    if (!response.ok) throw new Error(`Could not load generated catalog (${response.status})`);
-    const catalog = await response.json();
-    return {
-        seriesPaths: catalog.series || [],
-        novelPaths: catalog.novels || [],
-        volumePaths: catalog.volumes || []
-    };
 }
 
 async function mediaFor(metadataPath) {
