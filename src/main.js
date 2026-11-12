@@ -1,5 +1,5 @@
 import { loadCatalog, sortVolumes } from "./data.js";
-import { getSettings } from "./storage.js";
+import { getCachedAssetUrl, getSettings } from "./storage.js";
 import { openReader, openSettings } from "./reader.js";
 
 const app = document.querySelector("#app");
@@ -19,9 +19,22 @@ function rating(value) {
     return value ? `<span class="rating" aria-label="Rating ${value} out of 10">★ ${esc(value)}/10</span>` : "";
 }
 
-function coverArt(volume, className = "volume-cover") {
-    return volume.media.cover
-        ? `<span class="${className}"><img src="${volume.media.cover}" alt=""></span>`
+function compareOrder(left, right, orderKey, nameKey) {
+    const leftOrder = left[orderKey] === "" || left[orderKey] === null || left[orderKey] === undefined
+        ? Number.POSITIVE_INFINITY
+        : Number(left[orderKey]);
+    const rightOrder = right[orderKey] === "" || right[orderKey] === null || right[orderKey] === undefined
+        ? Number.POSITIVE_INFINITY
+        : Number(right[orderKey]);
+    const leftRank = Number.isFinite(leftOrder) ? leftOrder : Number.POSITIVE_INFINITY;
+    const rightRank = Number.isFinite(rightOrder) ? rightOrder : Number.POSITIVE_INFINITY;
+    return leftRank - rightRank || String(left[nameKey]).localeCompare(String(right[nameKey]));
+}
+
+function coverArt(volume, className = "volume-cover", preferNovelCover = false) {
+    const cover = preferNovelCover ? volume.novelCover : (volume.media.cover || volume.novelCover);
+    return cover
+        ? `<span class="${className}"><img src="${cover}" data-cover-url="${cover}" alt=""></span>`
         : `<span class="${className} generated-cover"><span>${esc(String(volume.volume ?? "—"))}</span><strong>${esc(volume.title)}</strong></span>`;
 }
 
@@ -68,10 +81,14 @@ function renderLibrary() {
             if (!novels.has(volume.novelName)) novels.set(volume.novelName, []);
             novels.get(volume.novelName).push(volume);
         });
-    const content = [...grouped.entries()].map(([seriesName, novels]) => `<section class="series-section">
-        <div class="section-heading"><div><p class="eyebrow">Collection</p><h2>${esc(seriesName)}</h2></div><span class="count">${[...novels.values()].reduce((sum, items) => sum + items.length, 0)} volumes</span></div>
-        <div class="series-card">${[...novels.entries()].map(([novelName, volumes]) => `<button class="novel-row" data-novel="${esc(novelName)}">
-            ${coverArt(volumes[0], "card-art")}<span class="novel-copy"><strong>${esc(novelName)}</strong><span>${volumes.length} ${volumes.length === 1 ? "volume" : "volumes"}</span></span><span class="arrow">→</span>
+    const content = [...grouped.entries()].sort(([, left], [, right]) => {
+        const leftVolume = left.values().next().value[0];
+        const rightVolume = right.values().next().value[0];
+        return compareOrder(leftVolume, rightVolume, "seriesOrder", "seriesName");
+    }).map(([seriesName, novels]) => `<section class="series-section">
+        <div class="section-heading"><div><p class="eyebrow">Series</p><h2>${esc(seriesName)}</h2></div><span class="count">${[...novels.values()].reduce((sum, items) => sum + items.length, 0)} volumes</span></div>
+        <div class="series-card">${[...novels.entries()].sort(([, left], [, right]) => compareOrder(left[0], right[0], "novelOrder", "novelName")).map(([novelName, volumes]) => `<button class="novel-row" data-novel="${esc(novelName)}">
+            ${coverArt(volumes[0], "card-art", true)}<span class="novel-copy"><strong>${esc(novelName)}</strong><span>${volumes.length} ${volumes.length === 1 ? "volume" : "volumes"}</span></span><span class="arrow">→</span>
         </button>`).join("")}</div>
     </section>`).join("");
     app.innerHTML = `<div class="page-shell hero"><p class="eyebrow">Updated 11/12/2026</p><h1>The Eternal<span> Ataraxia.</span></h1><p class="intro">Rake the repositories of antiquity.</p></div>
@@ -79,6 +96,17 @@ function renderLibrary() {
     app.querySelectorAll("[data-novel]").forEach((button) => button.addEventListener("click", () => {
         selectedNovel = button.dataset.novel;
         render();
+    }));
+    hydrateCovers();
+}
+
+async function hydrateCovers() {
+    await Promise.all([...app.querySelectorAll("[data-cover-url]")].map(async (image) => {
+        try {
+            image.src = await getCachedAssetUrl(image.dataset.coverUrl);
+        } catch {
+            image.src = image.dataset.coverUrl;
+        }
     }));
 }
 
@@ -92,6 +120,7 @@ function renderNovel() {
     app.querySelectorAll("[data-read]").forEach((button) => button.addEventListener("click", () => {
         openReader(catalog.volumes.find((volume) => volume._id === button.dataset.read));
     }));
+    hydrateCovers();
 }
 
 function render() {

@@ -119,14 +119,17 @@ export async function loadCatalog() {
             ...volume,
             seriesName: firstValue(volume.series_localized, volume.series, novel.series_localized, series.series_localized, "Uncategorized"),
             novelName: firstValue(volume.novel_localized, volume.novel, novel.novel_localized, "Untitled"),
+            seriesOrder: series.order,
+            novelOrder: novel.order,
             title: firstValue(volume.title, `Volume ${volume.volume}`),
             genre: firstValue(volume.genre, novel.genre, series.genre, []),
             year: firstValue(volume.year, novel.year, series.year),
             author: firstValue(volume.author, novel.author, series.author),
             rating: firstValue(volume.rating, novel.rating, series.rating),
+            novelCover: novel.cover || "",
             media: {
                 ...media,
-                cover: media.cover || novel.cover || ""
+                cover: media.cover || ""
             }
         };
     }));
