@@ -12,9 +12,9 @@ Serve the repository over HTTP (for example with any static file server) and ope
 2. Add the novel metadata JSON to `data/novels/`.
 3. Add a volume JSON and matching `.epub` and/or `.pdf` to a folder under `data/volume/`.
 
-The browser discovers JSON files by listing the `data/series/`, `data/novels/`, and `data/volume/` directories. Media is inferred from each volume JSON basename, so `book.json` automatically picks up `book.epub`, `book.pdf`, and an optional `book.png`, `book.jpg`, or `book.webp`.
+Locally, the browser discovers JSON files by listing the `data/series/`, `data/novels/`, and `data/volume/` directories. GitHub Pages does not provide directory listings, so the included Pages workflow generates `data/catalog.json` during deployment. Media is inferred from each volume JSON basename, so `book.json` automatically picks up `book.epub`, `book.pdf`, and an optional `book.png`, `book.jpg`, or `book.webp`.
 
-The loader matches series and novels by either their identifier or localized display name. Metadata cascades from series to novel to volume, so a blank or omitted field inherits from its parent and blank fields are not rendered. The static server must expose directory listings for automatic discovery.
+The loader matches series and novels by either their identifier or localized display name. Metadata cascades from series to novel to volume, so a blank or omitted field inherits from its parent and blank fields are not rendered. Pushes to the configured `main` branch redeploy the generated catalog automatically.
 
 ## Features
 
